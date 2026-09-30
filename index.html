@@ -50,6 +50,13 @@
   .howto b{color:var(--ozone)}
   .howto ul{margin:0;padding-left:1.2em}
   .note{font-size:11px;color:var(--sub)}
+  .ctrl{width:100%;display:flex;flex-direction:column;align-items:center;gap:6px}
+  .ctrl-lbl{font-size:12px;color:var(--sub)}
+  .seg{display:grid;grid-template-columns:1fr 1fr;width:100%;background:rgba(14,20,46,.7);border:1px solid var(--line);border-radius:999px;padding:4px;gap:4px}
+  .seg button{padding:10px 6px;border-radius:999px;font-size:14px;font-weight:800;color:var(--sub)}
+  .seg button.on{background:linear-gradient(180deg,#7ff5ff,#35b9e6);color:#04203a}
+  #ctrlNote{min-height:1.3em;line-height:1.5}
+  #ctrlNote.warn{color:var(--warn)}
   .btn{padding:14px 20px;border-radius:999px;font-weight:800;font-size:16px;width:100%;
     background:linear-gradient(180deg,#7ff5ff,#35b9e6);color:#04203a;box-shadow:0 6px 20px rgba(111,240,255,.3)}
   .btn.ghost{background:rgba(255,255,255,.08);color:var(--text);box-shadow:none;border:1px solid var(--line)}
@@ -131,6 +138,14 @@
   <div class="inner">
     <div class="logo"><small>ネコと守る 46億年</small><h1>にゃんこ<br>オゾンガード</h1></div>
     <p class="lead">オゾン層のバリアで宇宙デブリをはね返し、<br>地球の歴史を「現在」までつなごう！</p>
+    <div class="ctrl">
+      <div class="ctrl-lbl">そうさ方法</div>
+      <div class="seg">
+        <button data-ctrl="touch" class="on">👆 指でなぞる</button>
+        <button data-ctrl="tilt">📱 スマホを回す</button>
+      </div>
+      <div id="ctrlNote" class="note"></div>
+    </div>
     <div class="modes">
       <button class="mode chido" data-mode="chido">
         <canvas data-cat="white" data-mode="chido"></canvas>
@@ -149,7 +164,7 @@
     </div>
     <div class="howto">
       <ul>
-        <li>画面を指で<b>ぐるっとなぞって</b>回転。光る<b>オゾン層</b>でデブリを防ごう</li>
+        <li>画面を指で<b>ぐるっとなぞる</b>か、<b>スマホを回して</b>回転。光る<b>オゾン層</b>でデブリを防ごう</li>
         <li>オゾン層は時間とともに<b>うすく</b>なる。緑の<b>O₃</b>を受け止めると回復！</li>
         <li>デブリはどんどん速くなる。地球のハートがなくなる前に<b>現在</b>までたどりつけ！</li>
       </ul>
@@ -211,6 +226,8 @@ const CONFIG = {
   spawnEnd: 0.8,           // 同（終盤）
   dragGain: 1.5,           // 指の回転量に対する回転の倍率
   keySpeed: 3.6,           // キー操作の回転速度（rad/秒）
+  tiltGain: 1.8,           // スマホを回した角度に対する回転の倍率（90°回す→約160°）
+  tiltDeadZone: 3,         // この速さ（度/秒）以下の小さなブレは無視
 };
 
 const MODES = {
@@ -851,7 +868,11 @@ function startGame(mode){
   show(null);
   $('#hud').classList.remove('hidden');
   const hint = $('#hint'); hint.classList.remove('hidden');
-  hint.innerHTML = `<span class="swirl">🔄</span> ${MODES[mode].hint}`;
+  const target = mode === 'chido' ? '地球' : '宇宙';
+  hint.innerHTML = ctrlMode === 'tilt'
+    ? `<span class="swirl">📱</span> スマホをハンドルのように回して <b>${target}</b> を回そう`
+    : `<span class="swirl">🔄</span> ${MODES[mode].hint}`;
+  G.hintT = ctrlMode === 'tilt' ? 5 : 4;
   showToast('地球誕生', `${MODES[mode].name}モード`);
 }
 
@@ -950,6 +971,54 @@ window.addEventListener('keyup', e => {
 });
 document.addEventListener('visibilitychange', () => { if (document.hidden) pauseGame(); });
 document.addEventListener('gesturestart', e => e.preventDefault());
+
+/* ---------- スマホを回す操作（ジャイロセンサー） ----------
+   画面に垂直な軸まわりの回転速度（rotationRate.alpha）を積み重ねて回転量にする。
+   ハンドルのように回しても、机に置いて回しても反応する。 */
+let ctrlMode = 'touch', motionSeen = false, lastMotionT = 0;
+function onMotion(e){
+  const r = e.rotationRate;
+  if (!r || r.alpha == null) return;
+  motionSeen = true;
+  const now = performance.now();
+  const dt = lastMotionT ? Math.min(0.1, (now - lastMotionT) / 1000) : 0;
+  lastMotionT = now;
+  if (ctrlMode !== 'tilt' || state !== 'play' || !dt) return;
+  if (Math.abs(r.alpha) < CONFIG.tiltDeadZone) return;
+  // alpha は反時計回りが＋、ゲームの rotate は時計回りが＋
+  rotate(-r.alpha * Math.PI / 180 * dt * CONFIG.tiltGain);
+  if (Math.abs(r.alpha) > 30) G.hintT = Math.min(G.hintT, 0.6);
+}
+function setCtrl(mode, note = ''){
+  ctrlMode = mode;
+  for (const b of document.querySelectorAll('[data-ctrl]')) b.classList.toggle('on', b.dataset.ctrl === mode);
+  try { localStorage.setItem('nyanOzone.ctrl', mode); } catch (e) {}
+  const el = $('#ctrlNote');
+  el.classList.toggle('warn', note.startsWith('!'));
+  el.textContent = note.replace(/^!/, '') ||
+    (mode === 'tilt' ? '画面の自動回転はオフ（縦向きロック）にしてね。指でも操作できます' : '');
+}
+async function enableTilt(){
+  if (!('DeviceMotionEvent' in window)) { setCtrl('touch', '!この端末では回転センサーが使えません'); return; }
+  if (typeof DeviceMotionEvent.requestPermission === 'function') {
+    // iPhone：タップしたときに許可をたずねる
+    try {
+      const res = await DeviceMotionEvent.requestPermission();
+      if (res !== 'granted') { setCtrl('touch', '!センサーが許可されませんでした（Safariを開き直すと再度たずねます）'); return; }
+    } catch (err) { setCtrl('touch', '!センサーを使えませんでした'); return; }
+  }
+  window.addEventListener('devicemotion', onMotion);
+  setCtrl('tilt');
+  setTimeout(() => { if (ctrlMode === 'tilt' && !motionSeen) setCtrl('touch', '!回転センサーが見つかりませんでした（PCなど）'); }, 1500);
+}
+for (const b of document.querySelectorAll('[data-ctrl]')) {
+  b.addEventListener('click', () => { audioInit(); b.dataset.ctrl === 'tilt' ? enableTilt() : setCtrl('touch'); });
+}
+try {
+  // Android など許可が不要な端末では、前回「スマホを回す」を選んでいればそのまま使う
+  if (localStorage.getItem('nyanOzone.ctrl') === 'tilt' && 'DeviceMotionEvent' in window &&
+      typeof DeviceMotionEvent.requestPermission !== 'function') enableTilt();
+} catch (e) {}
 
 for (const b of document.querySelectorAll('.mode')) b.addEventListener('click', () => startGame(b.dataset.mode));
 $('#retryBtn').onclick = () => startGame(lastMode);
