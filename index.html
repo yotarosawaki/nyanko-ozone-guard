@@ -1,0 +1,990 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#050816">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<title>にゃんこオゾンガード</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@500;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#050816; --panel:rgba(14,20,46,.82); --line:rgba(150,190,255,.22);
+    --text:#eef3ff; --sub:#a3b3d8; --ozone:#6ff0ff; --warn:#ff6b7a; --gold:#ffd66b;
+    --sun:#ffb86b; --moon:#9fb2ff;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--text);overflow:hidden;
+    font-family:'M PLUS Rounded 1c','Hiragino Maru Gothic ProN','Hiragino Sans',system-ui,sans-serif;
+    touch-action:none;user-select:none;-webkit-user-select:none;overscroll-behavior:none}
+  button{font:inherit;color:inherit;border:0;background:none;cursor:pointer}
+  #game{position:fixed;inset:0;width:100%;height:100%;display:block}
+  .hidden{display:none!important}
+
+  /* ---------- 画面（タイトル・結果・ポーズ） ---------- */
+  .screen{position:fixed;inset:0;display:flex;flex-direction:column;overflow-y:auto;touch-action:pan-y;
+    padding:calc(env(safe-area-inset-top) + 18px) 16px calc(env(safe-area-inset-bottom) + 18px);
+    background:radial-gradient(120% 80% at 50% 45%,rgba(5,8,22,.35),rgba(5,8,22,.88))}
+  .inner{margin:auto;width:100%;max-width:460px;display:flex;flex-direction:column;align-items:center;gap:14px;text-align:center}
+  .logo small{display:block;color:var(--gold);font-size:13px;letter-spacing:.2em;margin-bottom:4px}
+  .logo h1{margin:0;font-size:clamp(34px,11vw,48px);line-height:1.05;font-weight:800;
+    background:linear-gradient(180deg,#fff 20%,#8ff3ff);-webkit-background-clip:text;background-clip:text;color:transparent;
+    filter:drop-shadow(0 0 14px rgba(111,240,255,.45))}
+  .lead{margin:0;color:var(--sub);font-size:14px;line-height:1.7}
+  .modes{display:grid;grid-template-columns:1fr 1fr;gap:10px;width:100%}
+  .mode{background:var(--panel);border:1px solid var(--line);border-radius:20px;padding:10px 8px 14px;
+    display:flex;flex-direction:column;align-items:center;gap:4px;transition:transform .12s}
+  .mode:active{transform:scale(.97)}
+  .mode.chido{box-shadow:inset 0 0 0 1px rgba(255,184,107,.25),0 6px 24px rgba(255,184,107,.12)}
+  .mode.tendo{box-shadow:inset 0 0 0 1px rgba(159,178,255,.25),0 6px 24px rgba(159,178,255,.12)}
+  .mode canvas{width:100%;height:92px;display:block}
+  .mode-name{font-size:19px;font-weight:800}
+  .chido .mode-name{color:var(--sun)} .tendo .mode-name{color:var(--moon)}
+  .mode-cat{font-size:12px;color:var(--sub)}
+  .mode-desc{font-size:12px;line-height:1.55;margin-top:2px}
+  .best{font-size:11px;color:var(--gold);min-height:1em;margin-top:2px}
+  .howto{width:100%;background:rgba(14,20,46,.6);border:1px solid var(--line);border-radius:16px;padding:12px 14px;text-align:left;font-size:13px;line-height:1.65}
+  .howto b{color:var(--ozone)}
+  .howto ul{margin:0;padding-left:1.2em}
+  .note{font-size:11px;color:var(--sub)}
+  .btn{padding:14px 20px;border-radius:999px;font-weight:800;font-size:16px;width:100%;
+    background:linear-gradient(180deg,#7ff5ff,#35b9e6);color:#04203a;box-shadow:0 6px 20px rgba(111,240,255,.3)}
+  .btn.ghost{background:rgba(255,255,255,.08);color:var(--text);box-shadow:none;border:1px solid var(--line)}
+  .btn:active{transform:scale(.98)}
+  .row{display:flex;gap:10px;width:100%}
+
+  /* ---------- 結果画面 ---------- */
+  .res-title{font-size:30px;font-weight:800;margin:0}
+  .res-title.clear{color:var(--gold);text-shadow:0 0 18px rgba(255,214,107,.5)}
+  .res-title.over{color:var(--warn)}
+  .res-year{font-size:clamp(36px,12vw,52px);font-weight:800;line-height:1.1}
+  .res-era{color:var(--sub);font-size:14px;margin-top:-6px}
+  .res-msg{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:12px 14px;font-size:14px;line-height:1.6;width:100%}
+  .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;width:100%}
+  .stat{background:rgba(255,255,255,.05);border-radius:12px;padding:8px 4px}
+  .stat b{display:block;font-size:20px}
+  .stat span{font-size:11px;color:var(--sub)}
+  .newrec{color:var(--gold);font-weight:800;font-size:13px}
+
+  /* ---------- HUD ---------- */
+  #hud{position:fixed;left:0;right:0;top:0;pointer-events:none;
+    padding:calc(env(safe-area-inset-top) + 10px) 14px 0;display:flex;flex-direction:column;align-items:center;gap:6px}
+  .hud-row{width:100%;max-width:520px;display:flex;align-items:center;justify-content:space-between}
+  #hearts{font-size:20px;letter-spacing:2px;color:var(--warn);text-shadow:0 0 8px rgba(255,107,122,.6)}
+  #hearts .lost{color:rgba(255,255,255,.15);text-shadow:none}
+  .hud-btns{display:flex;gap:8px}
+  .icon-btn{pointer-events:auto;width:38px;height:38px;border-radius:50%;background:rgba(255,255,255,.1);
+    border:1px solid var(--line);font-size:15px;display:grid;place-items:center}
+  #year{font-size:clamp(28px,8.5vw,38px);font-weight:800;line-height:1;text-shadow:0 2px 12px rgba(0,0,0,.6)}
+  #eraName{font-size:13px;color:var(--sub);margin-top:-2px}
+  .timeline{position:relative;width:100%;max-width:520px;height:8px;border-radius:99px;background:rgba(255,255,255,.1);margin-top:4px}
+  #timelineFill{position:absolute;left:0;top:0;bottom:0;width:0;border-radius:99px;background:linear-gradient(90deg,#ff8a4c,#ffd66b,#6ff0ff,#6dff9e)}
+  .tick{position:absolute;top:50%;width:4px;height:4px;margin:-2px 0 0 -2px;border-radius:50%;background:rgba(255,255,255,.55)}
+  #timelineMark{position:absolute;top:50%;width:18px;height:18px;margin:-9px 0 0 -9px;font-size:14px;line-height:18px;text-align:center}
+  .tl-labels{width:100%;max-width:520px;display:flex;justify-content:space-between;font-size:10px;color:var(--sub);margin-top:-2px}
+  .ozone{width:100%;max-width:520px;display:flex;align-items:center;gap:8px;font-size:12px;font-weight:800}
+  .ozone .lbl{color:var(--ozone)}
+  .ozone .bar{flex:1;height:8px;border-radius:99px;background:rgba(255,255,255,.1);overflow:hidden}
+  #ozoneFill{height:100%;width:100%;background:linear-gradient(90deg,#3bc7ff,#6ff0ff);border-radius:99px;transition:width .1s}
+  #ozoneFill.low{background:linear-gradient(90deg,#b86bff,#ff6b9d);animation:blink .5s infinite alternate}
+  #ozoneVal{width:3.2em;text-align:right;color:var(--ozone)}
+  @keyframes blink{to{opacity:.45}}
+
+  @media (orientation:landscape){ #toast{top:55%!important;left:22%!important} }
+  #toast{position:fixed;left:50%;top:32%;transform:translate(-50%,-50%);pointer-events:none;text-align:center;
+    font-weight:800;font-size:20px;opacity:0;white-space:nowrap;text-shadow:0 2px 12px rgba(0,0,0,.8)}
+  #toast small{display:block;font-size:12px;color:var(--gold);letter-spacing:.15em}
+  #toast.show{animation:toast 2.2s ease-out}
+  @keyframes toast{0%{opacity:0;transform:translate(-50%,-30%)}12%{opacity:1;transform:translate(-50%,-50%)}75%{opacity:1}100%{opacity:0;transform:translate(-50%,-65%)}}
+  #hint{position:fixed;left:0;right:0;bottom:calc(env(safe-area-inset-bottom) + 28px);text-align:center;pointer-events:none;
+    font-size:15px;font-weight:800;color:#fff;text-shadow:0 2px 10px rgba(0,0,0,.8);transition:opacity .5s}
+  #hint .swirl{display:inline-block;animation:swirl 1.2s linear infinite}
+  @keyframes swirl{from{transform:rotate(0)}to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+
+<!-- HUD -->
+<div id="hud" class="hidden">
+  <div class="hud-row">
+    <div id="hearts"></div>
+    <div class="hud-btns">
+      <button class="icon-btn" id="muteBtn2" aria-label="音">🔊</button>
+      <button class="icon-btn" id="pauseBtn" aria-label="一時停止">❚❚</button>
+    </div>
+  </div>
+  <div id="year">46億年前</div>
+  <div id="eraName">地球誕生</div>
+  <div class="timeline"><div id="timelineFill"></div><div id="ticks"></div><div id="timelineMark">🌏</div></div>
+  <div class="tl-labels"><span>地球誕生</span><span>現在</span></div>
+  <div class="ozone"><span class="lbl">O₃ オゾン層</span><div class="bar"><div id="ozoneFill"></div></div><span id="ozoneVal">100%</span></div>
+</div>
+<div id="toast"></div>
+<div id="hint" class="hidden"></div>
+
+<!-- タイトル -->
+<div id="title" class="screen">
+  <div class="inner">
+    <div class="logo"><small>ネコと守る 46億年</small><h1>にゃんこ<br>オゾンガード</h1></div>
+    <p class="lead">オゾン層のバリアで宇宙デブリをはね返し、<br>地球の歴史を「現在」までつなごう！</p>
+    <div class="modes">
+      <button class="mode chido" data-mode="chido">
+        <canvas data-cat="white" data-mode="chido"></canvas>
+        <div class="mode-name">地動説</div>
+        <div class="mode-cat">しろネコが走る</div>
+        <div class="mode-desc">地球が回る！<br>地球ごとオゾン層を動かして守る</div>
+        <div class="best" data-best="chido"></div>
+      </button>
+      <button class="mode tendo" data-mode="tendo">
+        <canvas data-cat="black" data-mode="tendo"></canvas>
+        <div class="mode-name">天動説</div>
+        <div class="mode-cat">くろネコが走る</div>
+        <div class="mode-desc">地球は動かない！<br>宇宙ごとデブリを回して守る</div>
+        <div class="best" data-best="tendo"></div>
+      </button>
+    </div>
+    <div class="howto">
+      <ul>
+        <li>画面を指で<b>ぐるっとなぞって</b>回転。光る<b>オゾン層</b>でデブリを防ごう</li>
+        <li>オゾン層は時間とともに<b>うすく</b>なる。緑の<b>O₃</b>を受け止めると回復！</li>
+        <li>デブリはどんどん速くなる。地球のハートがなくなる前に<b>現在</b>までたどりつけ！</li>
+      </ul>
+    </div>
+    <div class="row" style="justify-content:center">
+      <button class="icon-btn" id="muteBtn" aria-label="音">🔊</button>
+    </div>
+    <div class="note">PCでは ← → キーでも操作できます</div>
+  </div>
+</div>
+
+<!-- ポーズ -->
+<div id="pause" class="screen hidden">
+  <div class="inner">
+    <div class="res-title" style="color:var(--ozone)">一時停止中</div>
+    <button class="btn" id="resumeBtn">つづける</button>
+    <button class="btn ghost" id="quitBtn">モード選択にもどる</button>
+  </div>
+</div>
+
+<!-- 結果 -->
+<div id="result" class="screen hidden">
+  <div class="inner">
+    <h2 id="resTitle" class="res-title"></h2>
+    <div>
+      <div id="resYear" class="res-year"></div>
+      <div id="resEra" class="res-era"></div>
+    </div>
+    <div id="resNew" class="newrec hidden">★ ベスト記録こうしん！</div>
+    <div class="stats">
+      <div class="stat"><b id="resBlocked">0</b><span>防いだデブリ</span></div>
+      <div class="stat"><b id="resTime">0</b><span>生きのびた秒数</span></div>
+      <div class="stat"><b id="resBest">-</b><span>ベスト</span></div>
+    </div>
+    <div id="resMsg" class="res-msg"></div>
+    <button class="btn" id="retryBtn">もう一度</button>
+    <button class="btn ghost" id="menuBtn">モード選択</button>
+  </div>
+</div>
+
+<script>
+'use strict';
+/* =========================================================
+   設定（難易度はここで調整）
+   ========================================================= */
+const CONFIG = {
+  duration: 60,            // 地球誕生 → 現在 までの秒数
+  earthHP: 6,              // 地球のハート数
+  ozoneRadius: 1.5,        // オゾン層の半径（地球の半径=1）
+  arcMaxDeg: 75,           // オゾン満タン時のバリアの半分の角度
+  arcMinDeg: 28,           // オゾン0%時のバリアの半分の角度
+  ozoneDecay: 1.0,         // オゾンの自然減少（%/秒、終盤ほど増える）
+  blockCost: { rock: 1.5, sat: 1.5, big: 3 }, // デブリを防いだときのオゾン消費
+  damage:    { rock: 1,   sat: 1,   big: 2 }, // 地球に当たったときのダメージ
+  capsuleHeal: 14,         // O₃カプセルの回復量
+  impactStart: 3.8,        // デブリが出現してから届くまでの秒数（序盤）
+  impactEnd: 2.0,          // 同（終盤）
+  spawnStart: 1.45,        // デブリの出現間隔（序盤）
+  spawnEnd: 0.8,           // 同（終盤）
+  dragGain: 1.5,           // 指の回転量に対する回転の倍率
+  keySpeed: 3.6,           // キー操作の回転速度（rad/秒）
+};
+
+const MODES = {
+  chido: { name:'地動説', cat:'white', catName:'しろネコ', hint:'指でぐるっとなぞって <b>地球</b> を回そう' },
+  tendo: { name:'天動説', cat:'black', catName:'くろネコ', hint:'指でぐるっとなぞって <b>宇宙</b> を回そう' },
+};
+
+// 企業キャラの画像に差し替える場合：右向きの走りアニメを横に並べた画像を指定
+// 例: white: { src:'img/white_run.png', frames:6 }
+const CAT_SPRITES = { white:null, black:null };
+
+// ストーリー（p = ゲーム進行度 0〜1, y = 何年前）
+const MILESTONES = [
+  { p:0.00, y:4.6e9, name:'地球誕生' },
+  { p:0.11, y:4.0e9, name:'海ができる' },
+  { p:0.22, y:3.8e9, name:'最初の生命が生まれる' },
+  { p:0.34, y:2.7e9, name:'光合成で酸素がふえる' },
+  { p:0.46, y:5.4e8, name:'カンブリア大爆発' },
+  { p:0.56, y:4.2e8, name:'生き物が陸へ上がる' },
+  { p:0.66, y:2.3e8, name:'恐竜の時代' },
+  { p:0.76, y:6.6e7, name:'恐竜の絶滅' },
+  { p:0.86, y:7.0e6, name:'人類の祖先があらわれる' },
+  { p:0.94, y:1.0e4, name:'農業がはじまる' },
+  { p:1.00, y:0,     name:'現在' },
+];
+
+/* =========================================================
+   基本
+   ========================================================= */
+const TAU = Math.PI * 2;
+const $ = s => document.querySelector(s);
+const canvas = $('#game'), ctx = canvas.getContext('2d');
+const lerp = (a, b, t) => a + (b - a) * t;
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const rand = (a, b) => a + Math.random() * (b - a);
+const smooth = (x, a, b) => { const t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
+const angDiff = (a, b) => ((a - b + Math.PI) % TAU + TAU) % TAU - Math.PI;
+
+function mulberry32(a){ return function(){ a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a);
+  t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+
+function hex(h){ const n = parseInt(h.slice(1), 16); return [n >> 16 & 255, n >> 8 & 255, n & 255]; }
+function mix(a, b, t){ const A = hex(a), B = hex(b); return `rgb(${A.map((v, i) => Math.round(lerp(v, B[i], t))).join(',')})`; }
+
+let W = 0, H = 0, DPR = 1, CX = 0, CY = 0, RP = 60, SPAWN_R = 8, FAR = 500;
+let stars = [];
+
+function resize(){
+  DPR = Math.min(window.devicePixelRatio || 1, 2.5);
+  W = window.innerWidth; H = window.innerHeight;
+  canvas.width = Math.round(W * DPR); canvas.height = Math.round(H * DPR);
+  const portrait = H >= W;
+  CX = W / 2; CY = H * (portrait ? 0.58 : 0.6);
+  RP = portrait ? clamp(Math.min(W * 0.19, H * 0.12), 34, 140) : clamp(Math.min(H * 0.13, W * 0.12), 34, 140);
+  FAR = Math.max(Math.hypot(CX, CY), Math.hypot(W - CX, CY), Math.hypot(CX, H - CY), Math.hypot(W - CX, H - CY));
+  SPAWN_R = (FAR + RP * 0.4) / RP;
+  if (!stars.length) makeStars();
+}
+function makeStars(){
+  stars = [];
+  for (let i = 0; i < 220; i++) stars.push({ a: Math.random() * TAU, d: Math.sqrt(Math.random()), s: rand(0.4, 1.6), tw: Math.random() * TAU });
+}
+
+// 大陸の形（毎回同じ形）
+const CONTINENTS = (() => {
+  const r = mulberry32(46);
+  const list = [];
+  const spots = [[0.3, 0.55], [1.4, 0.5], [2.5, 0.6], [3.4, 0.35], [4.3, 0.62], [5.3, 0.45], [0, 0]];
+  for (const [a, d] of spots) {
+    const size = d === 0 ? 0.22 : 0.2 + r() * 0.16;
+    const pts = [];
+    const n = 11;
+    for (let i = 0; i < n; i++) {
+      const t = i / n * TAU, rr = size * (0.65 + r() * 0.45);
+      pts.push([Math.cos(a) * d + Math.cos(t) * rr, Math.sin(a) * d + Math.sin(t) * rr]);
+    }
+    list.push(pts);
+  }
+  return list;
+})();
+const CLOUDS = (() => {
+  const r = mulberry32(7); const list = [];
+  for (let i = 0; i < 7; i++) list.push({ a: r() * TAU, d: 0.25 + r() * 0.6, w: 0.18 + r() * 0.25, h: 0.05 + r() * 0.05, rot: r() * TAU });
+  return list;
+})();
+
+/* =========================================================
+   サウンド（WebAudioで簡単な効果音）
+   ========================================================= */
+let actx = null, muted = false;
+try { muted = localStorage.getItem('nyanOzone.muted') === '1'; } catch (e) {}
+function audioInit(){ if (!actx) { try { actx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) {} } if (actx && actx.state === 'suspended') actx.resume(); }
+function tone(freq, dur, type = 'sine', vol = 0.12, slideTo = null, delay = 0){
+  if (muted || !actx) return;
+  const t0 = actx.currentTime + delay;
+  const o = actx.createOscillator(), g = actx.createGain();
+  o.type = type; o.frequency.setValueAtTime(freq, t0);
+  if (slideTo) o.frequency.exponentialRampToValueAtTime(slideTo, t0 + dur);
+  g.gain.setValueAtTime(vol, t0); g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+  o.connect(g).connect(actx.destination); o.start(t0); o.stop(t0 + dur + 0.02);
+}
+const sfx = {
+  block(){ tone(rand(820, 980), 0.09, 'triangle', 0.1, 1500); },
+  heal(){ tone(660, 0.1, 'sine', 0.12); tone(990, 0.14, 'sine', 0.12, null, 0.08); tone(1320, 0.18, 'sine', 0.1, null, 0.16); },
+  hit(){ tone(160, 0.35, 'sawtooth', 0.16, 50); tone(90, 0.4, 'square', 0.08, 40); },
+  era(){ tone(523, 0.18, 'triangle', 0.08); tone(784, 0.3, 'triangle', 0.08, null, 0.1); },
+  over(){ tone(392, 0.3, 'triangle', 0.12); tone(311, 0.3, 'triangle', 0.12, null, 0.25); tone(196, 0.7, 'triangle', 0.12, null, 0.5); },
+  clear(){ [523, 659, 784, 1047].forEach((f, i) => tone(f, 0.35, 'triangle', 0.11, null, i * 0.12)); },
+};
+function setMuted(m){
+  muted = m; try { localStorage.setItem('nyanOzone.muted', m ? '1' : '0'); } catch (e) {}
+  $('#muteBtn').textContent = $('#muteBtn2').textContent = m ? '🔇' : '🔊';
+}
+
+/* =========================================================
+   ゲーム状態
+   ========================================================= */
+let state = 'title'; // title / play / paused / over / clear
+let G = null;
+let lastMode = 'chido';
+
+function makeState(mode){
+  return {
+    mode, t: 0, hp: CONFIG.earthHP, ozone: 100,
+    earthRot: 0, skyRot: 0, rotAccum: 0, rotVel: 0,
+    debris: [], particles: [],
+    spawnTimer: 1.0, capsuleTimer: 6.5,
+    blocked: 0, mi: 0,
+    shake: 0, flash: 0, arcFlash: 0, catHurt: 0,
+    catPhase: 0, facing: 1, hintT: 4, dead: 0,
+  };
+}
+const progress = () => Math.min(1, G.t / CONFIG.duration);
+const arcHalf = () => (CONFIG.arcMinDeg + (CONFIG.arcMaxDeg - CONFIG.arcMinDeg) * G.ozone / 100) * Math.PI / 180;
+
+function rotate(d){
+  if (G.mode === 'chido') G.earthRot += d; else G.skyRot += d;
+  G.rotAccum += d;
+}
+
+function yearAt(p){
+  if (p >= 1) return 0;
+  for (let i = 0; i < MILESTONES.length - 1; i++) {
+    const a = MILESTONES[i], b = MILESTONES[i + 1];
+    if (p < b.p) {
+      const f = (p - a.p) / (b.p - a.p);
+      return Math.pow(10, lerp(Math.log10(a.y + 1), Math.log10(b.y + 1), f)) - 1;
+    }
+  }
+  return 0;
+}
+function eraAt(p){ let n = MILESTONES[0].name; for (const m of MILESTONES) if (p >= m.p) n = m.name; return n; }
+function formatYear(y, p){
+  if (p >= 1 || y < 0.5) return '現在';
+  if (y >= 1e8) return (Math.round(y / 1e7) / 10) + '億年前';
+  if (y >= 1e4) return Math.round(y / 1e4).toLocaleString() + '万年前';
+  return Math.round(y).toLocaleString() + '年前';
+}
+
+/* ---------- デブリ ---------- */
+function spawnDebris(angle){
+  const p = progress();
+  const r = Math.random();
+  const type = p > 0.15 && r < 0.2 + 0.1 * p ? 'big' : (r < 0.6 ? 'rock' : 'sat');
+  const T = lerp(CONFIG.impactStart, CONFIG.impactEnd, Math.pow(p, 1.1)) * (type === 'big' ? 1.2 : 1) * rand(0.9, 1.12);
+  const size = type === 'big' ? 0.26 : type === 'sat' ? 0.17 : 0.15;
+  const verts = [];
+  const n = type === 'big' ? 9 : 7;
+  for (let i = 0; i < n; i++) verts.push(rand(0.68, 1));
+  G.debris.push({
+    type, a: angle ?? Math.random() * TAU, r: SPAWN_R, speed: (SPAWN_R - CONFIG.ozoneRadius) / T,
+    size, rot: Math.random() * TAU, spin: rand(-3, 3), verts,
+    drift: p > 0.45 && Math.random() < 0.35 ? rand(-0.35, 0.35) : 0, through: false,
+  });
+}
+function spawnCapsule(){
+  const T = lerp(4.2, 2.6, progress());
+  G.debris.push({ type: 'o3', a: Math.random() * TAU, r: SPAWN_R, speed: (SPAWN_R - CONFIG.ozoneRadius) / T,
+    size: 0.2, rot: 0, spin: 0, drift: 0, through: false, pulse: Math.random() * TAU });
+}
+
+/* ---------- パーティクル ---------- */
+function burst(x, y, color, n, spd, life, size = 2.5){
+  for (let i = 0; i < n; i++) {
+    const a = Math.random() * TAU, v = spd * rand(0.3, 1);
+    G.particles.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, life: life * rand(0.6, 1), max: life, color, size: size * rand(0.6, 1.3) });
+  }
+}
+function worldPos(d){ const a = d.a + G.skyRot; return [CX + Math.cos(a) * d.r * RP, CY + Math.sin(a) * d.r * RP, a]; }
+
+/* =========================================================
+   更新
+   ========================================================= */
+const keys = { left: false, right: false };
+
+function update(dt){
+  if (!G) return;
+  if (state === 'paused') return;
+  if (state === 'play') {
+    const k = (keys.right ? 1 : 0) - (keys.left ? 1 : 0);
+    if (k) rotate(k * CONFIG.keySpeed * dt);
+  } else if (state === 'title') {
+    rotate(0.5 * dt);
+  }
+  // 回転速度 → ネコの走り
+  const inst = G.rotAccum / Math.max(dt, 1e-3); G.rotAccum = 0;
+  G.rotVel += (inst - G.rotVel) * Math.min(1, dt * 12);
+  if (Math.abs(G.rotVel) > 0.35) G.facing = G.rotVel > 0 ? -1 : 1;
+  const prev = G.catPhase;
+  G.catPhase += (state === 'over' ? 0 : 9 + Math.min(22, Math.abs(G.rotVel) * 5)) * dt;
+  if (Math.floor(G.catPhase / Math.PI) !== Math.floor(prev / Math.PI) && state !== 'over') {
+    const fx = CX - G.facing * RP * 0.3, fy = CY - RP * 1.0;
+    G.particles.push({ x: fx, y: fy, vx: -G.facing * rand(20, 50), vy: rand(-25, -8), life: 0.4, max: 0.4, color: 'rgba(220,230,255,0.5)', size: rand(2, 4) });
+  }
+  G.shake = Math.max(0, G.shake - dt * 30);
+  G.flash = Math.max(0, G.flash - dt * 2.5);
+  G.arcFlash = Math.max(0, G.arcFlash - dt * 4);
+  G.catHurt = Math.max(0, G.catHurt - dt);
+  G.hintT -= dt;
+
+  for (let i = G.particles.length - 1; i >= 0; i--) {
+    const q = G.particles[i];
+    q.life -= dt; if (q.life <= 0) { G.particles.splice(i, 1); continue; }
+    q.x += q.vx * dt; q.y += q.vy * dt; q.vx *= 0.97; q.vy *= 0.97;
+  }
+  if (state === 'over') G.dead = Math.min(1, G.dead + dt * 1.5);
+  if (state === 'play') updateGame(dt);
+}
+
+function updateGame(dt){
+  G.t += dt;
+  const p = progress();
+  G.ozone = Math.max(0, G.ozone - CONFIG.ozoneDecay * (1 + 0.6 * p) * dt);
+
+  // 出現
+  G.spawnTimer -= dt;
+  if (G.spawnTimer <= 0) {
+    spawnDebris();
+    if (p > 0.3 && Math.random() < 0.05 + 0.2 * p) spawnDebris();
+    G.spawnTimer = lerp(CONFIG.spawnStart, CONFIG.spawnEnd, p) * rand(0.75, 1.25);
+  }
+  G.capsuleTimer -= dt;
+  if (G.capsuleTimer <= 0) { spawnCapsule(); G.capsuleTimer = rand(7, 10); }
+
+  // 移動と当たり判定
+  const arcC = -Math.PI / 2 + G.earthRot, half = arcHalf(), OZ = CONFIG.ozoneRadius;
+  for (let i = G.debris.length - 1; i >= 0; i--) {
+    const d = G.debris[i];
+    d.r -= d.speed * dt; d.a += d.drift * dt; d.rot += d.spin * dt;
+    if (!d.through && d.r <= OZ + d.size * 0.4) {
+      const wa = d.a + G.skyRot;
+      if (Math.abs(angDiff(wa, arcC)) <= half + d.size / OZ * 0.6) {
+        const [x, y] = worldPos(d);
+        if (d.type === 'o3') {
+          G.ozone = Math.min(100, G.ozone + CONFIG.capsuleHeal);
+          burst(x, y, '#7dff9e', 22, 160, 0.7, 3); sfx.heal();
+          toastSmall('オゾン回復！');
+        } else {
+          G.ozone = Math.max(0, G.ozone - CONFIG.blockCost[d.type]);
+          G.blocked++;
+          burst(x, y, '#aef7ff', d.type === 'big' ? 26 : 14, 190, 0.5, 2.6);
+          burst(x, y, '#ffd08a', 6, 90, 0.4, 2);
+          sfx.block();
+        }
+        G.arcFlash = 1;
+        G.debris.splice(i, 1);
+        continue;
+      }
+      d.through = true;
+    }
+    if (d.through && d.r <= 1 + d.size * 0.3) {
+      const [x, y] = worldPos(d);
+      G.debris.splice(i, 1);
+      if (d.type === 'o3') { burst(x, y, 'rgba(125,255,158,0.6)', 8, 60, 0.4); continue; }
+      G.hp -= CONFIG.damage[d.type];
+      G.shake = 12; G.flash = 1; G.catHurt = 0.7;
+      burst(x, y, '#ff8a4c', 30, 220, 0.8, 3.2);
+      burst(x, y, '#ffd66b', 12, 120, 0.6, 2);
+      sfx.hit();
+      try { navigator.vibrate && navigator.vibrate(80); } catch (e) {}
+      if (G.hp <= 0) { G.hp = 0; endGame(false); return; }
+    }
+  }
+
+  // 時代の進行
+  while (G.mi < MILESTONES.length - 1 && p >= MILESTONES[G.mi + 1].p) {
+    G.mi++;
+    if (G.mi < MILESTONES.length - 1) { showToast(MILESTONES[G.mi].name, formatYear(MILESTONES[G.mi].y, 0)); sfx.era(); }
+  }
+  if (p >= 1) endGame(true);
+}
+
+/* =========================================================
+   描画
+   ========================================================= */
+const CAT_STYLE = {
+  white: { fur:'#fbfbff', far:'#d4d9e8', line:'#3a4160', inner:'#ffb3c6', eye:'#3b78e0', pupil:'#0f1c3a', whisker:'#8a90a8', collar:'#ff5a6e', blush:true },
+  black: { fur:'#25252f', far:'#17171e', line:'#b3bde0', inner:'#8a5a70', eye:'#ffd84a', pupil:'#111', whisker:'#c7cde6', collar:'#46c6ff', blush:false },
+};
+const spriteImgs = {};
+for (const k in CAT_SPRITES) {
+  const s = CAT_SPRITES[k]; if (!s) continue;
+  const img = new Image(); img.onload = () => { spriteImgs[k] = { img, frames: s.frames || 1 }; }; img.src = s.src;
+}
+
+// ネコ（x,y = 足元, size = 体の長さ px, facing = 1:右向き / -1:左向き）
+function drawCat(c, x, y, size, phase, facing, kind, hurt = 0){
+  const sp = spriteImgs[kind];
+  if (sp) {
+    const fw = sp.img.width / sp.frames, fh = sp.img.height, h = size * 0.95, w = h * fw / fh;
+    const f = Math.floor((phase / TAU) * sp.frames) % sp.frames;
+    c.save(); c.translate(x, y); c.scale(facing, 1);
+    c.drawImage(sp.img, f * fw, 0, fw, fh, -w / 2, -h, w, h); c.restore(); return;
+  }
+  const P = CAT_STYLE[kind];
+  const k = size / 100;
+  c.save(); c.translate(x, y); c.scale(facing * k, k);
+  c.lineCap = 'round'; c.lineJoin = 'round';
+  const bob = -Math.abs(Math.sin(phase)) * 7;
+  const leg = (hx, hy, ang, col) => {
+    const L = 27, px = hx + Math.sin(ang) * L, py = hy + Math.cos(ang) * L;
+    c.beginPath(); c.moveTo(hx, hy); c.lineTo(px, py);
+    c.strokeStyle = P.line; c.lineWidth = 12; c.stroke();
+    c.strokeStyle = col; c.lineWidth = 7.5; c.stroke();
+  };
+  // 奥の足
+  leg(-18, -30 + bob, Math.sin(phase - 0.6) * 0.75, P.far);
+  leg(18, -30 + bob, Math.sin(phase + Math.PI * 0.9 - 0.6) * 0.8, P.far);
+  // しっぽ
+  const tw = Math.sin(phase + 1) * 10;
+  c.beginPath(); c.moveTo(-28, -40 + bob);
+  c.bezierCurveTo(-52, -44 + bob, -60, -62 + tw * 0.5 + bob, -50 + tw * 0.3, -80 + tw + bob);
+  c.strokeStyle = P.line; c.lineWidth = 12; c.stroke();
+  c.strokeStyle = P.fur; c.lineWidth = 7.5; c.stroke();
+  // 手前の足
+  leg(-20, -30 + bob, Math.sin(phase) * 0.75, P.fur);
+  leg(16, -30 + bob, Math.sin(phase + Math.PI * 0.9) * 0.8, P.fur);
+  // 体
+  c.beginPath(); c.ellipse(0, -38 + bob, 34, 17, 0, 0, TAU);
+  c.fillStyle = P.fur; c.fill(); c.strokeStyle = P.line; c.lineWidth = 3; c.stroke();
+  // 首輪
+  c.beginPath(); c.moveTo(20, -52 + bob); c.quadraticCurveTo(22, -42 + bob, 32, -40 + bob);
+  c.strokeStyle = P.collar; c.lineWidth = 5; c.stroke();
+  c.beginPath(); c.arc(28, -39 + bob, 3.6, 0, TAU); c.fillStyle = '#ffd24a'; c.fill();
+  // 耳
+  const ear = (pts, inner) => {
+    c.beginPath(); c.moveTo(...pts[0]); c.lineTo(...pts[1]); c.lineTo(...pts[2]); c.closePath();
+    c.fillStyle = P.fur; c.fill(); c.strokeStyle = P.line; c.lineWidth = 3; c.stroke();
+    c.beginPath(); c.moveTo(...inner[0]); c.lineTo(...inner[1]); c.lineTo(...inner[2]); c.closePath();
+    c.fillStyle = P.inner; c.fill();
+  };
+  const hy = -60 + bob;
+  ear([[20, hy - 6], [22, hy - 30], [35, hy - 15]], [[24, hy - 10], [24, hy - 23], [31, hy - 14]]);
+  ear([[36, hy - 15], [49, hy - 31], [53, hy - 7]], [[40, hy - 14], [48, hy - 25], [50, hy - 10]]);
+  // 頭
+  c.beginPath(); c.arc(35, hy, 19, 0, TAU);
+  c.fillStyle = P.fur; c.fill(); c.strokeStyle = P.line; c.lineWidth = 3; c.stroke();
+  // 顔
+  if (hurt > 0) {
+    c.strokeStyle = kind === 'white' ? '#2a2f45' : '#ffd84a'; c.lineWidth = 2.4;
+    for (const ex of [37, 48]) { c.beginPath(); c.moveTo(ex - 3, hy - 5); c.lineTo(ex + 2, hy - 2); c.lineTo(ex - 3, hy + 1); c.stroke(); }
+  } else {
+    for (const ex of [37, 48]) {
+      c.beginPath(); c.ellipse(ex, hy - 2, 3.2, 4.6, 0, 0, TAU); c.fillStyle = P.eye; c.fill();
+      c.beginPath(); c.ellipse(ex + 0.6, hy - 2, kind === 'black' ? 1.1 : 2, 3.6, 0, 0, TAU); c.fillStyle = P.pupil; c.fill();
+      c.beginPath(); c.arc(ex + 1.4, hy - 4, 1.2, 0, TAU); c.fillStyle = '#fff'; c.fill();
+    }
+  }
+  if (P.blush) { c.beginPath(); c.ellipse(45, hy + 6, 4, 2.4, 0, 0, TAU); c.fillStyle = 'rgba(255,140,170,0.55)'; c.fill(); }
+  c.beginPath(); c.moveTo(51, hy + 2); c.lineTo(55, hy + 1); c.lineTo(53, hy + 4.5); c.closePath(); c.fillStyle = '#ff8fa8'; c.fill();
+  c.beginPath(); c.moveTo(53, hy + 4.5); c.quadraticCurveTo(52, hy + 8, 49, hy + 7);
+  c.strokeStyle = P.line; c.lineWidth = 1.6; c.stroke();
+  c.strokeStyle = P.whisker; c.lineWidth = 1.3;
+  c.beginPath(); c.moveTo(50, hy + 5); c.lineTo(66, hy + 2); c.moveTo(50, hy + 7); c.lineTo(66, hy + 9); c.stroke();
+  c.restore();
+}
+
+function earthColors(p){
+  return {
+    ocean: mix('#b8431b', '#1f6fd2', smooth(p, 0.03, 0.13)),
+    oceanDeep: mix('#5a1a0a', '#0d3a86', smooth(p, 0.03, 0.13)),
+    land: mix('#4b3a33', '#3fb05c', smooth(p, 0.5, 0.6)),
+    landEdge: mix('#2e211c', '#2a7f42', smooth(p, 0.5, 0.6)),
+    cloud: smooth(p, 0.1, 0.2),
+  };
+}
+
+function smoothPath(c, pts, s){
+  const n = pts.length;
+  c.beginPath();
+  const m0 = [(pts[n - 1][0] + pts[0][0]) / 2 * s, (pts[n - 1][1] + pts[0][1]) / 2 * s];
+  c.moveTo(m0[0], m0[1]);
+  for (let i = 0; i < n; i++) {
+    const a = pts[i], b = pts[(i + 1) % n];
+    c.quadraticCurveTo(a[0] * s, a[1] * s, (a[0] + b[0]) / 2 * s, (a[1] + b[1]) / 2 * s);
+  }
+  c.closePath();
+}
+
+function drawEarth(p){
+  const r = RP, col = earthColors(p);
+  ctx.save(); ctx.translate(CX, CY);
+  const g = ctx.createRadialGradient(0, 0, r * 0.95, 0, 0, r * 1.3);
+  g.addColorStop(0, 'rgba(120,200,255,0.35)'); g.addColorStop(1, 'rgba(120,200,255,0)');
+  ctx.fillStyle = g; ctx.beginPath(); ctx.arc(0, 0, r * 1.3, 0, TAU); ctx.fill();
+
+  const og = ctx.createRadialGradient(-r * 0.3, -r * 0.3, r * 0.1, 0, 0, r);
+  og.addColorStop(0, col.ocean); og.addColorStop(1, col.oceanDeep);
+  ctx.beginPath(); ctx.arc(0, 0, r, 0, TAU); ctx.fillStyle = og; ctx.fill();
+  ctx.save(); ctx.clip(); ctx.rotate(G.earthRot);
+  for (const pts of CONTINENTS) {
+    smoothPath(ctx, pts, r); ctx.fillStyle = col.land; ctx.fill();
+    ctx.strokeStyle = col.landEdge; ctx.lineWidth = r * 0.03; ctx.stroke();
+  }
+  if (col.cloud > 0) {
+    ctx.fillStyle = `rgba(255,255,255,${0.4 * col.cloud})`;
+    for (const cl of CLOUDS) {
+      ctx.beginPath(); ctx.ellipse(Math.cos(cl.a) * cl.d * r, Math.sin(cl.a) * cl.d * r, cl.w * r, cl.h * r, cl.rot, 0, TAU); ctx.fill();
+    }
+  }
+  ctx.restore();
+  const sh = ctx.createRadialGradient(-r * 0.35, -r * 0.4, r * 0.05, 0, 0, r);
+  sh.addColorStop(0, 'rgba(255,255,255,0.22)'); sh.addColorStop(0.55, 'rgba(0,0,0,0)'); sh.addColorStop(1, 'rgba(0,0,25,0.5)');
+  ctx.beginPath(); ctx.arc(0, 0, r, 0, TAU); ctx.fillStyle = sh; ctx.fill();
+  if (G.flash > 0) { ctx.fillStyle = `rgba(255,60,60,${0.45 * G.flash})`; ctx.fill(); }
+  if (G.dead > 0) { ctx.fillStyle = `rgba(40,30,40,${0.6 * G.dead})`; ctx.fill(); }
+  ctx.restore();
+}
+
+function drawOzone(t){
+  const oz = G.ozone / 100, half = arcHalf(), c = -Math.PI / 2 + G.earthRot, rr = CONFIG.ozoneRadius * RP;
+  ctx.save();
+  ctx.beginPath(); ctx.arc(CX, CY, rr, 0, TAU);
+  ctx.strokeStyle = `rgba(111,240,255,${0.07 + 0.1 * oz})`; ctx.lineWidth = 2; ctx.setLineDash([3, 6]); ctx.stroke(); ctx.setLineDash([]);
+  if (state !== 'over') {
+    const low = oz < 0.3 ? 0.5 + 0.5 * Math.sin(t * 12) : 1;
+    const lw = RP * (0.08 + 0.12 * oz) * (1 + G.arcFlash * 0.25);
+    ctx.lineCap = 'round';
+    ctx.shadowColor = 'rgba(111,240,255,0.95)'; ctx.shadowBlur = 16 + G.arcFlash * 14;
+    ctx.beginPath(); ctx.arc(CX, CY, rr, c - half, c + half);
+    ctx.strokeStyle = `rgba(111,240,255,${(0.4 + 0.45 * oz) * low})`; ctx.lineWidth = lw; ctx.stroke();
+    ctx.shadowBlur = 0;
+    ctx.strokeStyle = `rgba(235,255,255,${0.75 * low})`; ctx.lineWidth = Math.max(1.5, lw * 0.28); ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function drawSky(t){
+  const g = ctx.createRadialGradient(CX, CY, 0, CX, CY, FAR);
+  g.addColorStop(0, '#0e1740'); g.addColorStop(0.55, '#070c26'); g.addColorStop(1, '#03050f');
+  ctx.fillStyle = g; ctx.fillRect(-30, -30, W + 60, H + 60);
+  const sr = G.skyRot;
+  for (const s of stars) {
+    const a = s.a + sr, d = s.d * FAR;
+    const x = CX + Math.cos(a) * d, y = CY + Math.sin(a) * d;
+    ctx.globalAlpha = 0.45 + 0.4 * Math.sin(t * 2 + s.tw);
+    ctx.fillStyle = '#fff'; ctx.fillRect(x, y, s.s, s.s);
+  }
+  ctx.globalAlpha = 1;
+  // 太陽と月（天動説では宇宙と一緒に回る）
+  const sunA = 2.35 + sr, sunD = RP * 3.1;
+  const sx = CX + Math.cos(sunA) * sunD, sy = CY + Math.sin(sunA) * sunD;
+  const sg = ctx.createRadialGradient(sx, sy, 0, sx, sy, RP * 0.9);
+  sg.addColorStop(0, 'rgba(255,220,140,0.55)'); sg.addColorStop(0.25, 'rgba(255,170,80,0.25)'); sg.addColorStop(1, 'rgba(255,150,60,0)');
+  ctx.fillStyle = sg; ctx.beginPath(); ctx.arc(sx, sy, RP * 0.9, 0, TAU); ctx.fill();
+  ctx.fillStyle = 'rgba(255,215,130,0.8)'; ctx.beginPath(); ctx.arc(sx, sy, RP * 0.2, 0, TAU); ctx.fill();
+  const moA = -0.55 + sr, moD = RP * 2.6;
+  const mx = CX + Math.cos(moA) * moD, my = CY + Math.sin(moA) * moD;
+  ctx.fillStyle = 'rgba(210,220,240,0.55)'; ctx.beginPath(); ctx.arc(mx, my, RP * 0.12, 0, TAU); ctx.fill();
+  ctx.fillStyle = 'rgba(7,12,38,0.6)'; ctx.beginPath(); ctx.arc(mx + RP * 0.05, my - RP * 0.03, RP * 0.1, 0, TAU); ctx.fill();
+}
+
+function drawDebris(d, t){
+  const [x, y, a] = worldPos(d);
+  const s = d.size * RP;
+  const ox = Math.cos(a), oy = Math.sin(a);
+  const len = Math.min(RP * 1.6, d.speed * RP * 0.2);
+  const tg = ctx.createLinearGradient(x, y, x + ox * len, y + oy * len);
+  const tc = d.type === 'o3' ? '125,255,158' : d.type === 'big' ? '255,150,80' : '170,200,255';
+  tg.addColorStop(0, `rgba(${tc},0.45)`); tg.addColorStop(1, `rgba(${tc},0)`);
+  ctx.strokeStyle = tg; ctx.lineWidth = s * 0.9; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + ox * len, y + oy * len); ctx.stroke();
+
+  ctx.save(); ctx.translate(x, y);
+  if (d.type === 'o3') {
+    const pu = 1 + 0.08 * Math.sin(t * 8 + d.pulse);
+    ctx.shadowColor = '#7dff9e'; ctx.shadowBlur = 16;
+    const cg = ctx.createRadialGradient(-s * 0.3, -s * 0.3, 0, 0, 0, s * pu);
+    cg.addColorStop(0, '#d8ffe2'); cg.addColorStop(1, '#2fcf6a');
+    ctx.fillStyle = cg; ctx.beginPath(); ctx.arc(0, 0, s * pu, 0, TAU); ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = '#063b1a'; ctx.font = `800 ${s * 0.85}px 'M PLUS Rounded 1c',sans-serif`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('O₃', 0, s * 0.05);
+  } else if (d.type === 'sat') {
+    ctx.rotate(d.rot);
+    ctx.fillStyle = '#3d6fd8'; ctx.strokeStyle = '#a9c4ff'; ctx.lineWidth = 1;
+    for (const sx of [-1, 1]) {
+      ctx.fillRect(sx > 0 ? s * 0.35 : -s * 1.05, -s * 0.28, s * 0.7, s * 0.56);
+      ctx.strokeRect(sx > 0 ? s * 0.35 : -s * 1.05, -s * 0.28, s * 0.7, s * 0.56);
+    }
+    ctx.fillStyle = '#c9ccd6'; ctx.fillRect(-s * 0.35, -s * 0.4, s * 0.7, s * 0.8);
+    ctx.fillStyle = '#ffcf5a'; ctx.fillRect(-s * 0.35, -s * 0.4, s * 0.7, s * 0.18);
+    ctx.strokeStyle = '#e8ebf5'; ctx.beginPath(); ctx.moveTo(0, -s * 0.4); ctx.lineTo(0, -s * 0.75); ctx.stroke();
+  } else {
+    ctx.rotate(d.rot);
+    if (d.type === 'big') { ctx.shadowColor = 'rgba(255,120,60,0.9)'; ctx.shadowBlur = 14; }
+    const n = d.verts.length;
+    ctx.beginPath();
+    for (let i = 0; i < n; i++) { const aa = i / n * TAU; ctx.lineTo(Math.cos(aa) * s * d.verts[i], Math.sin(aa) * s * d.verts[i]); }
+    ctx.closePath();
+    const rg = ctx.createRadialGradient(-s * 0.3, -s * 0.3, 0, 0, 0, s);
+    if (d.type === 'big') { rg.addColorStop(0, '#c7876a'); rg.addColorStop(1, '#5a3326'); }
+    else { rg.addColorStop(0, '#b9bdca'); rg.addColorStop(1, '#5d6272'); }
+    ctx.fillStyle = rg; ctx.fill(); ctx.shadowBlur = 0;
+    ctx.strokeStyle = 'rgba(255,255,255,0.35)'; ctx.lineWidth = 1; ctx.stroke();
+    ctx.fillStyle = 'rgba(0,0,0,0.25)';
+    ctx.beginPath(); ctx.arc(s * 0.2, s * 0.1, s * 0.18, 0, TAU); ctx.arc(-s * 0.25, -s * 0.2, s * 0.12, 0, TAU); ctx.fill();
+  }
+  ctx.restore();
+
+  // 画面外のデブリの予告マーク
+  const dist = d.r * RP, m = 16;
+  let tt = Infinity;
+  if (ox > 0) tt = Math.min(tt, (W - m - CX) / ox); if (ox < 0) tt = Math.min(tt, (m - CX) / ox);
+  if (oy > 0) tt = Math.min(tt, (H - m - CY) / oy); if (oy < 0) tt = Math.min(tt, (m - CY) / oy);
+  if (dist > tt + s) {
+    const ex = CX + ox * tt, ey = CY + oy * tt;
+    const close = clamp(1 - (dist - tt) / (RP * 3), 0.25, 1);
+    ctx.save(); ctx.translate(ex, ey); ctx.rotate(a + Math.PI);
+    ctx.globalAlpha = close;
+    ctx.fillStyle = d.type === 'o3' ? '#7dff9e' : d.type === 'big' ? '#ff8a4c' : '#ff6b7a';
+    ctx.beginPath(); ctx.moveTo(8, 0); ctx.lineTo(-6, -7); ctx.lineTo(-6, 7); ctx.closePath(); ctx.fill();
+    ctx.restore();
+  }
+}
+
+function draw(t){
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  const sh = G.shake;
+  ctx.translate(rand(-sh, sh), rand(-sh, sh));
+  drawSky(t);
+  drawOzone(t);
+  drawEarth(state === 'title' ? 0.75 : progress());
+  const jump = G.catHurt > 0 ? -Math.sin(G.catHurt / 0.7 * Math.PI) * RP * 0.35 : 0;
+  ctx.save();
+  if (CAT_STYLE[MODES[G.mode].cat] && MODES[G.mode].cat === 'black') { ctx.shadowColor = 'rgba(150,175,255,0.55)'; ctx.shadowBlur = 10; }
+  drawCat(ctx, CX, CY - RP * 0.97 + jump, RP * 0.66, G.catPhase, G.facing, MODES[G.mode].cat, G.catHurt);
+  ctx.restore();
+  for (const d of G.debris) drawDebris(d, t);
+  for (const q of G.particles) {
+    ctx.globalAlpha = clamp(q.life / q.max, 0, 1);
+    ctx.fillStyle = q.color; ctx.beginPath(); ctx.arc(q.x, q.y, q.size, 0, TAU); ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+}
+
+/* ---------- タイトルのネコプレビュー ---------- */
+const previews = [...document.querySelectorAll('.mode canvas')].map(cv => ({ cv, c: cv.getContext('2d'), kind: cv.dataset.cat, mode: cv.dataset.mode }));
+let previewT = 0;
+function drawPreviews(dt){
+  previewT += dt;
+  for (const pv of previews) {
+    const r = pv.cv.getBoundingClientRect();
+    if (!r.width) continue;
+    const w = Math.round(r.width * DPR), h = Math.round(r.height * DPR);
+    if (pv.cv.width !== w || pv.cv.height !== h) { pv.cv.width = w; pv.cv.height = h; }
+    const c = pv.c; c.setTransform(DPR, 0, 0, DPR, 0, 0); c.clearRect(0, 0, r.width, r.height);
+    const cw = r.width, ch = r.height, pr = cw * 1.1, pcx = cw / 2, pcy = ch * 0.78 + pr;
+    // 星
+    c.fillStyle = '#fff';
+    for (let i = 0; i < 18; i++) {
+      const baseA = i * 2.4, rr = pr + 12 + (i * 37 % 60);
+      const a = baseA + (pv.mode === 'tendo' ? previewT * 0.35 : 0);
+      c.globalAlpha = 0.3 + 0.3 * Math.sin(previewT * 2 + i);
+      c.fillRect(pcx + Math.cos(a) * rr, pcy + Math.sin(a) * rr, 1.4, 1.4);
+    }
+    c.globalAlpha = 1;
+    // 地面（小さな地球）
+    c.save(); c.beginPath(); c.arc(pcx, pcy, pr, 0, TAU); c.fillStyle = '#1f6fd2'; c.fill(); c.clip();
+    c.fillStyle = '#3fb05c';
+    const rot = pv.mode === 'chido' ? previewT * 0.35 : 0;
+    for (let i = 0; i < 8; i++) { const a = i * 0.8 + rot; c.beginPath(); c.ellipse(pcx + Math.cos(a - Math.PI / 2) * pr, pcy + Math.sin(a - Math.PI / 2) * pr, 14, 8, a, 0, TAU); c.fill(); }
+    c.restore();
+    c.beginPath(); c.arc(pcx, pcy, pr + 10, -Math.PI / 2 - 0.35, -Math.PI / 2 + 0.35);
+    c.strokeStyle = 'rgba(111,240,255,0.7)'; c.lineWidth = 4; c.lineCap = 'round'; c.stroke();
+    if (pv.kind === 'black') { c.shadowColor = 'rgba(150,175,255,0.55)'; c.shadowBlur = 8; }
+    drawCat(c, pcx, ch * 0.78 + 1, ch * 0.62, previewT * 11 + (pv.kind === 'black' ? 1 : 0), -1, pv.kind);
+    c.shadowBlur = 0;
+  }
+}
+
+/* =========================================================
+   HUD
+   ========================================================= */
+const hud = { hp: -1, year: '', era: '', oz: -1, prog: -1 };
+function buildTicks(){
+  $('#ticks').innerHTML = MILESTONES.slice(1, -1).map(m => `<div class="tick" style="left:${m.p * 100}%"></div>`).join('');
+}
+function updateHUD(){
+  if (state !== 'play' && state !== 'paused') return;
+  const p = progress();
+  if (hud.hp !== G.hp) {
+    hud.hp = G.hp;
+    $('#hearts').innerHTML = Array.from({ length: CONFIG.earthHP }, (_, i) => `<span class="${i < G.hp ? '' : 'lost'}">♥</span>`).join('');
+  }
+  const y = formatYear(yearAt(p), p);
+  if (y !== hud.year) { hud.year = y; $('#year').textContent = y; }
+  const e = eraAt(p);
+  if (e !== hud.era) { hud.era = e; $('#eraName').textContent = e; }
+  const pr = Math.round(p * 1000);
+  if (pr !== hud.prog) { hud.prog = pr; $('#timelineFill').style.width = (p * 100) + '%'; $('#timelineMark').style.left = (p * 100) + '%'; }
+  const oz = Math.round(G.ozone);
+  if (oz !== hud.oz) { hud.oz = oz; $('#ozoneFill').style.width = oz + '%'; $('#ozoneVal').textContent = oz + '%'; $('#ozoneFill').classList.toggle('low', oz < 30); }
+  const hint = $('#hint');
+  hint.style.opacity = G.hintT > 0 ? Math.min(1, G.hintT) : 0;
+}
+function showToast(main, sub){
+  const el = $('#toast');
+  el.innerHTML = `<small>${sub}</small>${main}`;
+  el.classList.remove('show'); void el.offsetWidth; el.classList.add('show');
+}
+function toastSmall(text){
+  const q = G.particles;
+  q.push({ text, x: CX, y: CY - RP * 2.2, vx: 0, vy: -30, life: 0.9, max: 0.9, color: '#7dff9e', size: 0 });
+}
+
+/* =========================================================
+   画面遷移
+   ========================================================= */
+function show(id){ for (const s of ['#title', '#pause', '#result']) $(s).classList.toggle('hidden', s !== id); }
+
+function startGame(mode){
+  audioInit();
+  lastMode = mode;
+  G = makeState(mode);
+  state = 'play';
+  Object.assign(hud, { hp: -1, year: '', era: '', oz: -1, prog: -1 });
+  show(null);
+  $('#hud').classList.remove('hidden');
+  const hint = $('#hint'); hint.classList.remove('hidden');
+  hint.innerHTML = `<span class="swirl">🔄</span> ${MODES[mode].hint}`;
+  showToast('地球誕生', `${MODES[mode].name}モード`);
+}
+
+function bestKey(mode){ return 'nyanOzone.best.' + mode; }
+const memBest = {};
+function getBest(mode){
+  let v = 0;
+  try { v = parseFloat(localStorage.getItem(bestKey(mode))) || 0; } catch (e) {}
+  return Math.max(v, memBest[mode] || 0);
+}
+function setBest(mode, v){ memBest[mode] = v; try { localStorage.setItem(bestKey(mode), String(v)); } catch (e) {} }
+function refreshBest(){
+  for (const el of document.querySelectorAll('[data-best]')) {
+    const b = getBest(el.dataset.best);
+    el.textContent = b > 0 ? `ベスト：${formatYear(yearAt(b), b)}` : '';
+  }
+}
+
+function endGame(clear){
+  state = clear ? 'clear' : 'over';
+  const p = progress();
+  const [ex, ey] = [CX, CY];
+  if (clear) {
+    for (const d of G.debris) { const [x, y] = worldPos(d); burst(x, y, '#aef7ff', 10, 140, 0.6); }
+    G.debris = [];
+    for (let i = 0; i < 6; i++) burst(CX + rand(-RP * 2, RP * 2), CY + rand(-RP * 3, RP), ['#ffd66b', '#6ff0ff', '#ff8fd0', '#7dff9e'][i % 4], 30, 220, 1.3, 3);
+    sfx.clear();
+  } else {
+    G.debris = [];
+    burst(ex, ey, '#ff8a4c', 60, 280, 1.2, 3.5);
+    burst(ex, ey, '#ffd66b', 30, 180, 1, 2.5);
+    sfx.over();
+  }
+  const best = getBest(G.mode), isNew = p > best + 1e-6;
+  if (isNew) setBest(G.mode, p);
+  setTimeout(() => showResult(clear, p, isNew), clear ? 1400 : 1300);
+}
+
+function showResult(clear, p, isNew){
+  $('#hud').classList.add('hidden'); $('#hint').classList.add('hidden');
+  const m = MODES[G.mode];
+  const t = $('#resTitle');
+  t.textContent = clear ? 'クリア！' : 'ゲームオーバー';
+  t.className = 'res-title ' + (clear ? 'clear' : 'over');
+  $('#resYear').textContent = formatYear(yearAt(p), p);
+  $('#resEra').textContent = clear ? '46億年の歴史をつないだ！' : `「${eraAt(p)}」のころ`;
+  $('#resNew').classList.toggle('hidden', !isNew);
+  $('#resBlocked').textContent = G.blocked;
+  $('#resTime').textContent = G.t.toFixed(1);
+  const b = getBest(G.mode);
+  $('#resBest').textContent = formatYear(yearAt(b), b);
+  $('#resMsg').innerHTML = clear
+    ? `${m.catName}「やったにゃ！ ${m.name}モードで地球を<b>現在</b>まで守りきったにゃ！」`
+    : `${m.catName}「地球の歴史が <b>${formatYear(yearAt(p), p)}</b> でとぎれちゃったにゃ…。つぎは現在までいくにゃ！」`;
+  show('#result');
+}
+
+function goTitle(){
+  state = 'title';
+  G = makeState('chido');
+  $('#hud').classList.add('hidden'); $('#hint').classList.add('hidden');
+  refreshBest();
+  show('#title');
+}
+function pauseGame(){ if (state !== 'play') return; state = 'paused'; show('#pause'); }
+function resumeGame(){ if (state !== 'paused') return; state = 'play'; show(null); }
+
+/* =========================================================
+   入力
+   ========================================================= */
+let dragId = null, lastAng = 0;
+canvas.addEventListener('pointerdown', e => {
+  if (state !== 'play' || dragId !== null) return;
+  dragId = e.pointerId; lastAng = Math.atan2(e.clientY - CY, e.clientX - CX);
+  try { canvas.setPointerCapture(e.pointerId); } catch (err) {}
+});
+canvas.addEventListener('pointermove', e => {
+  if (e.pointerId !== dragId || state !== 'play') return;
+  const a = Math.atan2(e.clientY - CY, e.clientX - CX);
+  const dist = Math.hypot(e.clientX - CX, e.clientY - CY);
+  const d = angDiff(a, lastAng); lastAng = a;
+  if (dist > RP * 0.35) { rotate(d * CONFIG.dragGain); G.hintT = Math.min(G.hintT, 0.6); }
+});
+const endDrag = e => { if (e.pointerId === dragId) dragId = null; };
+canvas.addEventListener('pointerup', endDrag);
+canvas.addEventListener('pointercancel', endDrag);
+
+window.addEventListener('keydown', e => {
+  if (e.key === 'ArrowLeft' || e.key === 'a') keys.left = true;
+  if (e.key === 'ArrowRight' || e.key === 'd') keys.right = true;
+  if (e.key === 'Escape' || e.key === 'p') { state === 'play' ? pauseGame() : resumeGame(); }
+});
+window.addEventListener('keyup', e => {
+  if (e.key === 'ArrowLeft' || e.key === 'a') keys.left = false;
+  if (e.key === 'ArrowRight' || e.key === 'd') keys.right = false;
+});
+document.addEventListener('visibilitychange', () => { if (document.hidden) pauseGame(); });
+document.addEventListener('gesturestart', e => e.preventDefault());
+
+for (const b of document.querySelectorAll('.mode')) b.addEventListener('click', () => startGame(b.dataset.mode));
+$('#retryBtn').onclick = () => startGame(lastMode);
+$('#menuBtn').onclick = goTitle;
+$('#pauseBtn').onclick = pauseGame;
+$('#resumeBtn').onclick = resumeGame;
+$('#quitBtn').onclick = goTitle;
+$('#muteBtn').onclick = $('#muteBtn2').onclick = () => { audioInit(); setMuted(!muted); };
+
+/* =========================================================
+   ループ
+   ========================================================= */
+let last = performance.now();
+function frame(now){
+  const dt = Math.min(0.05, (now - last) / 1000); last = now;
+  update(dt);
+  draw(now / 1000);
+  // 回復テキスト
+  for (const q of G.particles) if (q.text) {
+    ctx.globalAlpha = clamp(q.life / q.max, 0, 1);
+    ctx.fillStyle = q.color; ctx.font = `800 ${Math.round(RP * 0.28)}px 'M PLUS Rounded 1c',sans-serif`;
+    ctx.textAlign = 'center'; ctx.fillText(q.text, q.x, q.y);
+    ctx.globalAlpha = 1;
+  }
+  if (state === 'title') drawPreviews(dt);
+  updateHUD();
+  requestAnimationFrame(frame);
+}
+
+window.addEventListener('resize', resize);
+resize();
+buildTicks();
+setMuted(muted);
+goTitle();
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
